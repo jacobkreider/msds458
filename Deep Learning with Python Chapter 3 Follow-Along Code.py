@@ -1,6 +1,17 @@
-# Working with IMDB data to classify reviews as positive or negative
-# From 'Deep Learning with Python' by Francois Chollet, Manning Press
+#%% [markdown]
+# Notes from 'Deep Learning with Python' by Francois Chollet, Manning Press
+#<br/>
+# *Anything in quotes in the markdown sections is a direct quote from the book*
 
+#%% [markdown]
+#### 3.1.1 - 3.3.4
+
+# Notes to be transcribed from handwritten later
+
+#%% [markdown]
+#### 3.4.1 The IMDB Dataset
+
+# Working with IMDB data to classify reviews as positive or negative
 
 #%%
 # Downloading/loading the built-in imdb data
@@ -21,7 +32,7 @@ decodedReview = ' '.join(
 print(decodedReview)
 
 #%% [markdown]
-## Preparing the data
+#### 3.4.2 Preparing the data
 #"You can't feed a list of integers into a neural network. You have to turn them
 # into into tensors. There are two ways to do that:<br/><br/>
 #       1. Pad your lists so they all have the same length, turn them into n integer
@@ -59,7 +70,7 @@ yTest = np.asarray(testLabels).astype('float32')
 
     
 #%% [markdown]
-## Building Your Network
+#### 3.4.3 Building Your Network
 # "The input data are vectors, and the labels are scalars."
 # This type of data works well with a simple stack of fully connected ('Dense')
 # layers with 'relu' activations : Dense(16, activation = 'relu')<br/>
@@ -150,7 +161,7 @@ model.compile(optimizer = 'rmsprop',
 
 
 #%% [markdown]
-#### 3.4.4 Validation your approach
+#### 3.4.4 Validating your approach
 
 
 #%%
