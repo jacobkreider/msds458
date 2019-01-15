@@ -516,4 +516,282 @@ model.evaluate(xTest, yTest)
 
 #### Note that none of these changes in accuracy tell us any base truths about these changes. They all depend on the data
 
+#%% [markdown]
+### 3.5 Classifying newsires: a multiclass classification example
+# "In this section, you’ll build a network to classify Reuters newswires into 46 mutually exclusive topics. Because you have
+#  many classes, this problem is an instance of multiclass classification; and because each data point should be classified 
+# into only one category, the problem is more specifically an instance of single-label, multiclass classification. 
+# If each data point could belong to multiple categories (in this case, topics), you’d be facing a multilabel, multiclass 
+# classification problem."
+
+##### *Single-label, multiclass classification*: each data point gets thrown into a single category, of which there are many
+##### *Multilabel, multiclass classification* : each data point can belong to multiple categories
+
+
+
+#%% [markdown]
+#### 3.5.1 The Reuters Dataset
+# The Reuters datset contains short newswires and their topics, of which there are 46. Each topic has at least 10 examples in
+# the training set.
+
+#%%
+# Load the dataset
+from keras.datasets import reuters
+
+# Create train and test data
+(trainData, trainLabels), (testData, testLabels) = reuters.load_data(
+    num_words = 10000) #restricts the data to the 10K most frequently used words
+
+#%%
+# Check the number of examples in the train and test sets
+print(len(trainData))
+len(testData)
+
+#%% [markdown]
+# As with our earlier example, each example in the training set is a list of integers
+# that map back to an index of words.
+
+# The label associated with each example is an integer between 0-45 that maps back to
+# an index of topics.
+
+#### 3.5.2 Preparing the Data
+
+
+#%%
+# Now, we'll vectorize the data using the same code we used in the last exercise
+
+import numpy as np
+
+def vectorizeSequences(sequences, dimension = 10000):
+    results =np.zeros((len(sequences), dimension))
+    for i, sequence in enumerate(sequences):
+        results[i, sequence] = 1
+    return results
+
+xTrain = vectorizeSequences(trainData)
+xTest = vectorizeSequences(testData)
+
+#%% [markdown]
+# We have a couple options for vectorizing the labels: cast the list as an integer tensor,
+# or use one-hot encoding (which is discussed further in chapter 6)
+
+#In this case, one-hot encoding is implemented the same way that the vectorization was above:
+
+
+
+#%%
+def oneHot(labels, dimension = 46):
+    results = np.zeros((len(labels), dimension))
+    for i, label in enumerate(labels):
+        results[i, label] = 1
+    return results
+
+oneHotTrainLabels = oneHot(trainLabels)
+oneHotTestLabels = oneHot(testLabels)
+
+#%%
+#Keras can do this for us sing to_categorical
+
+from keras.utils.np_utils import to_categorical
+
+oneHotTrainLabels = to_categorical(trainLabels)
+oneHotTestLabels = to_categorical(testLabels)
+
+#%% [markdown]
+#### 3.5.3 Building Your Network
+# While this problem is similar to our movie review classifications, the dimensionality
+# is much higher-- we've gone from two classification groups to 46.
+#<br/>
+# A 16-dimensional space (hidden units) likely won't work here as it did in the last problem.
+# As information passes through stacks of Dense layers, the layer might drop some of that
+# information. When it does, it can't be recovered by deeper layers. This can create an 
+# "information bottleneck", where relevant information for the output is permanently dropped.
+# To avoid that, we'll increase the dimensionality of our hidden layers by increasing the
+# hidden units to 64.
+
+#%%
+# Model Definition
+
+from keras import models
+from keras import layers
+
+model = models.Sequential()
+model.add(layers.Dense(64, activation = 'relu', input_shape = (10000, )))
+model.add(layers.Dense(64, activation = 'relu'))
+model.add(layers.Dense(46, activation = 'softmax'))
+
+
+#%% [markdown]
+##### Some notes above the above architecture:
+# * The output layer has dimensionality of 46 to match the topic list
+# * The *softmax* activation in the final layer returns a probability distribution across the 46 classes. 
+# * The softmax probability distribution will sum to 1 and give the likelihood that the inout belongs to each class.
+
+# The best loss function in this case is *categorical_crossentropy*. This measures tje distance between two probability
+# distributions-- by minimizing this, we train the network to get as close to the true labels as possible
+
+#%%
+# Compile the model
+
+model.compile(optimizer = 'rmsprop',
+              loss = 'categorical_crossentropy',
+              metrics = ['accuracy'])
+
+#%% [markdown]
+#### 3.5.4 Validating Your Approach
+
+# We;ll create a validation set and train the model for 20 epochs:
+
+
+#%%
+#Create the validation data
+xVal = xTrain[:1000]
+partialXtrain = xTrain[1000:]
+
+yVal = oneHotTrainLabels[:1000]
+partialYtrain = oneHotTrainLabels[1000:]
+
+# Train the model
+
+history = model.fit(partialXtrain,
+                    partialYtrain,
+                    epochs=20,
+                    batch_size=512,
+                    validation_data=(xVal, yVal))
+
+#%%
+# Display the loss and accuracy curves for the model
+
+import matplotlib.pyplot as plt
+
+loss = history.history['loss']
+valLoss = history.history['val_loss']
+
+epochs = range(1, len(loss) + 1)
+
+plt.plot(epochs, loss, 'bo', label = "Training Loss")
+plt.plot(epochs, valLoss, 'b', label = "Validation Loss")
+plt.title('Training and Validation Loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.legend()
+
+plt.show()
+
+#%%
+#The Accuracy Curve:
+
+plt.clf()
+
+acc = history.history['acc']
+valAcc = history.history['val_acc']
+
+plt.plot(epochs, acc, 'bo', label = 'Training Accuracy')
+plt.plot(epochs, valAcc, 'b', label = "Validation Accuracy")
+plt.title("Training and Validation Accuracy")
+plt.xlabel('Epochs')
+plt.ylabel('Accuracy')
+plt.legend()
+
+plt.show()
+
+#%% [markdown]
+# At 9 epochs, the model begins to overfit (there is a slight drop in accuracy at that
+# point before it increases throughout the remaining iterations)
+# <br/><br/>
+# We'll rebuild the model from scratch using only 9 epochs and evaluate it against our test set
+
+#%%
+# Retrain the model from scratch
+
+model = models.Sequential()
+model.add(layers.Dense(64, activation = 'relu', input_shape = (10000, )))
+model.add(layers.Dense(64, activation = 'relu'))
+model.add(layers.Dense(46, activation = 'softmax'))
+
+model.compile(optimizer = 'rmsprop',
+              loss = 'categorical_crossentropy',
+              metrics = ['accuracy'])
+
+model.fit(partialXtrain,
+          partialYtrain,
+          epochs=9,
+          batch_size=512,
+          validation_data=(xVal, yVal))
+
+results = model.evaluate(xTest, oneHotTestLabels)
+
+#%% [markdown]
+# The model results of 77% accuracy far outperform the random baseline of ~19%
+
+#### 3.5.5 Generating predictions on new data
+
+
+#%%
+#Generate prediction on the test data
+predictions = model.predict(xTest)
+
+# Each entry should be a vector with the same lenght as the number of topics (46)
+predictions[0].shape
+
+# and the coefficients of each of those vectors should sum to one
+np.sum(predictions[0])
+
+#Whatever class in each vector has the highest value is the predicted class
+np.argmax(predictions[0])
+
+#%% [markdown]
+#### 3.5.6 A different way to handle labels and loss
+# We could have cast the labels as an integer tensor instead of one hot encoding them. To do
+# this, you just call yTrain = np.array(trainLabels).
+#<br/><br/>
+
+# Not much would change by doing this, except we wouldn't be able to use categorical_crossentropy
+# for our loss function. That method requires labels to follow categorical encoding.
+#<br/><br/>
+
+# Instead, we would use *sparse_categorical_crossentropy* which is the same loss function, it just
+# interacs with the data differently.
+
+#### 3.5.7 The importance of having sufficiently large intermediate layers
+
+# What would happen if we had layers with dimensionality smaller than our final output? As mentioned
+# earlier, it would create an "information bottleneck". Let's see what that would do to our
+# model's performance:
+
+
+#%%
+# A model with an information bottleneck
+
+model = models.Sequential()
+model.add(layers.Dense(64, activation = 'relu', input_shape = (10000, )))
+model.add(layers.Dense(4, activation = 'relu'))
+model.add(layers.Dense(46, activation = 'softmax'))
+
+model.compile(optimizer = 'rmsprop',
+              loss = 'categorical_crossentropy',
+              metrics = ['accuracy'])
+
+model.fit(partialXtrain,
+          partialYtrain,
+          epochs=20,
+          batch_size=512,
+          validation_data=(xVal, yVal))
+
+#%% [markdown]
+# We get a 70.2% accuracy on the validation data, a nearly 10% absolute drop from our initial model.
+
+#### 3.5.8 Further Experiments
+
+# * Try using larger or smaller layers
+# * Try a single or three hidden layers
+
+### Key Takeaways from This Example
+
+# * When you have N classes to categorize into, your ouput layer should be a Dense layer of size N
+# * If the problem is single-layer, multiclass, then the output layer should use *softmax* activation
+# * Categorical crossentropy is nearly always the correst loss function for this type of problem
+# * Labels can either be case as integers (loss function becomes sparse categorical crossentropy) or one hot encoded
+# * Avoid creating information bottlenecks: make sure the hidden layers are big enough so that info isn't dropped
+
 #%%
