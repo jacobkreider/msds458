@@ -794,4 +794,218 @@ model.fit(partialXtrain,
 # * Labels can either be case as integers (loss function becomes sparse categorical crossentropy) or one hot encoded
 # * Avoid creating information bottlenecks: make sure the hidden layers are big enough so that info isn't dropped
 
+### 3.6 Prediction house prices: a regression example
+
+#### 3.6.1 The Boston Housing Prices dataset
+
+# We'll attempt to predict the median price of homes in Boston suburbs in the mid-70s. Unlike the previous
+# examples, this dataset has relatively few data points: 506, split between 404 for training and 102 for testing.
+# <br/><br/>
+
+# Also, each feature in the dataset (e.g. crime rate) has a different scale.
+#%%
+# Load the data
+from keras.datasets import boston_housing
+
+#Create train and test data
+(trainData, trainTargets), (testData, testTargets) = boston_housing.load_data()
+
+#%% [markdown]
+#### 3.6.2 Preparing the Data
+
+# Neural networks want data that is homogeneous-- not in different scales. As such, we'll perform some
+# *feature-wise normalization*: for each feature, we'll subtract the mean of the feature and divide by
+# the standard deviation. This way the feature is centered around zero and has a *unit standard deviation*.
+
+
+
+#%%
+# Using numpy to normalize the data
+import numpy as np
+
+mean = trainData.mean(axis = 0)
+trainData -= mean
+std = trainData.std(axis = 0)
+trainData /= std
+
+testData -= mean
+testData /= std
+
+
+#%% [markdown]
+##### *Note: The training mean and std was used on the test data. Never compute **anything** on the test data!*
+#<br/><br/>
+
+#### 3.6.3 Building your network
+
+#Since we have so few examples in our data, we'll create a small network: 2 hidden layers, 64 hidden units each.
+# Overfitting is always an issue with small training sets, so we can try and mitigate that a bit by
+# training a smal network
+
+#%%
+from keras import models
+from keras import layers
+
+def buildModel(): #defining the model as a function that we can call
+    model = models.Sequential()
+    model.add(layers.Dense(64, activation = 'relu', input_shape = (trainData.shape[1], )))
+    model.add(layers.Dense(64, activation = 'relu'))
+    model.add(layers.Dense(64, activation = 'relu'))
+    model.add(layers.Dense(1))
+    
+    model.compile(optimizer = 'rmsprop',
+                  loss = 'mse',
+                  metrics = ['mae'])
+    return model
+
+#%% [markdown]
+#### Some notes on the above model specification:
+# * The output layer has no activation because we are predicting linear values. Activation functions would limit its range.
+# * We're using mean squared error as our loss function. 
+# * Our metric is *mean absolute error*. We want to minimize the absolute value between the prediction and targets
+
+#### 3.6.4 Validating your approach using K-fold cross-validation
+
+# Since we have so few data points, simply splitting into a train and validation set can cause problems. Namely, our 
+# validation scores might not be a good predictor of performance on our test data. There can be a high variance between
+# validation scores depending on which part of the small dataset gets set aside.
+#<br/><br/>
+
+# To deal with this, we'll use K-fold cross-validation. We;ll split the available data in K partitions,
+# and run the model on each K-1. Then, we average the scores.
+
+#%%
+# Running the model with K-fold validation
+
+k = 4
+numValSamples = len(trainData) // k #Determining our fold size
+numEpochs = 100
+
+allScores = [] #We'll place our score after each iteration of the k-fold here
+
+for i in range(k): #for each of our k-fold iterations
+    print('processing fold #', i)
+    valData = trainData[i * numValSamples: (i + 1) * numValSamples] #creating our data partition
+    valTargets = trainTargets[i * numValSamples : (i + 1) * numValSamples]
+
+    partialTrainData = np.concatenate(
+        [trainData[:i * numValSamples],
+        trainData[(i + 1) * numValSamples:]],
+        axis = 0)
+    partialTrainTargets = np.concatenate(
+        [trainTargets[:i * numValSamples],
+        trainTargets[(i + 1) * numValSamples:]],
+        axis = 0)
+    
+    model = buildModel()
+    model.fit(partialTrainData, partialTrainTargets,
+              epochs = numEpochs, batch_size=1, verbose=0)
+    valMSE, valMAE = model.evaluate(valData, valTargets, verbose=0)
+    allScores.append(valMAE)
+
+
+
+
+#%%
+# Checking MAE scores and findings the mean
+print(allScores)
+
+print(np.mean(allScores))
+
+#%% [markdown]
+# As seen above, we're off by about $2,400 on each prediction. Since most house prices are < $50K, that's a bit wide.
+# <br/><br/>
+
+# As seen above, we're off on our predictions by ~$2,400...a pretty big gap considering how low prices are.
+# Let's modify our code slightly so that we train across 500 epochs instead of 100, and track performance of each epoch
+# by saving the per-epoch validation score log:
+
+#%%
+# Saving the validation logs at each fold
+numEpochs = 500
+allMAEhistories = []
+
+for i in range(k):
+    print('processing fold #', i)
+    valData = trainData[i * numValSamples: (i + 1) * numValSamples]
+    valTargets = trainTargets[i * numValSamples: (i + 1) * numValSamples]
+    partialTrainData = np.concatenate(
+        [trainData[:i * numValSamples],
+        trainData[(i + 1) * numValSamples:]],
+        axis = 0)
+    partialTrainTargets = np.concatenate(
+        [trainTargets[:i * numValSamples],
+        trainTargets[(i + 1) * numValSamples:]],
+        axis = 0)
+    
+    model = buildModel()
+    history = model.fit(partialTrainData, partialTrainTargets,
+                        validation_data=(valData, valTargets),
+                        epochs=numEpochs, batch_size=1, verbose=0)
+    maeHistory = history.history['val_mean_absolute_error']
+    allMAEhistories.append(maeHistory)
+
+#%%
+# Now, we'll compute the history of successive mean K-fold scores
+
+averageMaeHistory = [
+    np.mean([x[i] for x in allMAEhistories]) for i in range(numEpochs)]
+
+# and plot the results
+
+import matplotlib.pyplot as plt
+
+plt.plot(range(1, len(averageMaeHistory) + 1), averageMaeHistory)
+plt.xlabel('Epochs')
+plt.ylabel('Validation MAE')
+plt.show()
+
+#%%
+# That chart was a bit tough to read, so we'll do a few things:
+# * Omit the first 10 data points, to get the chart's scale a bit more readable 
+# * Replace the points with an exponential moving average to smooth out the line
+
+def smoothCurve(points, factor = 0.9):
+    smoothedPoints = []
+    for point in points:
+        if smoothedPoints:
+            previous = smoothedPoints[-1]
+            smoothedPoints.append(previous * factor + point * (1 - factor))
+        else:
+            smoothedPoints.append(point)
+    return smoothedPoints
+
+smoothMAEhistory = smoothCurve(averageMaeHistory[10:])
+
+plt.plot(range(1, len(smoothMAEhistory) + 1), smoothMAEhistory)
+plt.xlabel('Epochs')
+plt.ylabel('Validation MAE')
+plt.show()
+
+#%% [markdown]
+# We can see that the model stops improving after ~80 epochs. So, we can tune our
+# parameters to reflect that in our final model. *Note: we'll also change our batch size to 16,
+# reflecting his final model in the book
+
+
+#%%
+
+model = buildModel()
+model.fit(trainData, trainTargets,
+          epochs=80, batch_size=16, verbose=0)
+testMseScore, testMaeScore = model.evaluate(testData, testTargets)
+
+#%% [markdown]
+# We're off by ~$2,900 on average
+
+### Key Takeaways from This Example
+
+# * Regression uses different loss functions (MSE being a popular one)
+# * Evaluation metrics are also different for regression. Mean absolute error (MAE) is common
+# * When features (columns) in the input data have different scales, each feature should be normalized in preprocessing
+# * This can be done by subtracting the feature mean and dividing by the feature std
+# * When the dataset has low observations, K-fold validation can increase evaluation reliability
+# * When observations are low, use a small network with only one or two hidden layers
+
+
 #%%
