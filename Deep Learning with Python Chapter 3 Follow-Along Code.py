@@ -1,4 +1,6 @@
 #%% [markdown]
+# *Notebook Created by Jacob Kreider*
+# 
 # Notes from 'Deep Learning with Python' by Francois Chollet, Manning Press
 #<br/>
 # *Anything in quotes in the markdown sections is a direct quote from the book*
