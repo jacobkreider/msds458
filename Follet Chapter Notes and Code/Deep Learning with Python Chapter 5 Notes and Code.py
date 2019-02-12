@@ -158,7 +158,7 @@ testAcc
 # When the input feature map and the patch size create areas of the input
 # the can't be mapped, the output width/height has to shrink. (For instance,
 # a 5x5 input map only has 9 tiles that a 3x3 patch can be centered on.)
-# <br/>
+                                                                                                                                                                                                                                                                                                                                                                                        # <br/>
 #
 # To counter this effect, you can use *padding*-- essentially, you add 
 # the rows and columns necessary to ensure that all input tiles can be
@@ -172,7 +172,7 @@ testAcc
 # done in practice. 
 #
 #### 5.1.2 The max-pooling operation
-#
+                                                                     
 # The role of max pooling is to "*aggressively downsample feature maps*"
 # <br/>
 #
