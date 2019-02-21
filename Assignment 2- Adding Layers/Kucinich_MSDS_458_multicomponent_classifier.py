@@ -2,7 +2,7 @@
 # We will randomly define initial values for connection weights, and also randomly select
 #   which training data that we will use for a given run.
 import os
-os.chdir(r"/home/jacob/MSDS-git/msds458/Data")
+os.chdir(r"D:\MSDS-git\msds458\Data")
 
 import random
 from random import randint
